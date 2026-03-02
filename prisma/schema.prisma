@@ -1,0 +1,201 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Business info
+  companyName   String?
+  vatNumber     String?
+  plan          Plan      @default(FREE)
+  planExpiresAt DateTime?
+
+  // Relations
+  accounts    Account[]
+  sessions    Session[]
+  products    Product[]
+  sales       Sale[]
+  expenses    Expense[]
+  platforms   Platform[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  userId         String
+  name           String
+  sku            String?
+  ean            String?
+  description    String?
+  category       String?
+  platformId     String?
+  purchasePrice  Float
+  sellingPrice   Float
+  stock          Int         @default(0)
+  minStock       Int         @default(5)
+  weight         Float?      // kg
+  imageUrl       String?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform Platform? @relation(fields: [platformId], references: [id])
+  sales    Sale[]
+
+  @@map("products")
+}
+
+model Platform {
+  id             String       @id @default(cuid())
+  userId         String
+  name           String
+  type           PlatformType
+  commissionRate Float        @default(0) // %
+  apiKey         String?
+  apiSecret      String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  sales    Sale[]
+
+  @@map("platforms")
+}
+
+model Sale {
+  id              String    @id @default(cuid())
+  userId          String
+  productId       String
+  platformId      String?
+  quantity        Int
+  unitPrice       Float
+  totalRevenue    Float
+  commission      Float     @default(0)
+  adsCost         Float     @default(0)
+  shippingCost    Float     @default(0)
+  packagingCost   Float     @default(0)
+  returnRate      Float     @default(0) // %
+  returnCost      Float     @default(0)
+  vatRate         Float     @default(23) // %
+  netProfit       Float
+  grossMargin     Float     // %
+  soldAt          DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product  Product   @relation(fields: [productId], references: [id])
+  platform Platform? @relation(fields: [platformId], references: [id])
+
+  @@map("sales")
+}
+
+model Expense {
+  id          String      @id @default(cuid())
+  userId      String
+  name        String
+  category    ExpenseCategory
+  type        ExpenseType @default(FIXED)
+  amount      Float
+  description String?
+  date        DateTime    @default(now())
+  isRecurring Boolean     @default(false)
+  recurringDay Int?       // day of month
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum PlatformType {
+  ALLEGRO
+  OLX
+  EMPIK
+  AMAZON
+  WOOCOMMERCE
+  SHOPIFY
+  OTHER
+}
+
+enum ExpenseCategory {
+  PACKAGING
+  TRANSPORT
+  FUEL
+  WAREHOUSE
+  ACCOUNTING
+  ZUS
+  EMPLOYEES
+  ADS
+  OTHER
+}
+
+enum ExpenseType {
+  FIXED
+  VARIABLE
+}
